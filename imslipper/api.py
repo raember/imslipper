@@ -78,12 +78,12 @@ class Imslp:
                 a = id_div.select_one('span.mh555 > a[title]')
                 if a is None:
                     continue
-                file_type = a.text.lower()
-                if file_type not in ('pdf', 'mxl', 'mscz'):
-                    # Music score: https://imslp.org/wiki/Herz_und_Mund_und_Tat_und_Leben,_BWV_147_(Bach,_Johann_Sebastian)
-                    if file_type not in ('zip',):
-                        continue
-                    continue
+                # file_type = a.text.lower()
+                # if file_type not in ('pdf', 'mxl', 'mscz'):
+                #     # Music score: https://imslp.org/wiki/Herz_und_Mund_und_Tat_und_Leben,_BWV_147_(Bach,_Johann_Sebastian)
+                #     if file_type not in ('zip',):
+                #         continue
+                #     continue
                 a = id_div.select_one('a')
                 dl_id = id_div['id']
                 title = id_div.select_one('span[title]').text.strip()
@@ -108,7 +108,7 @@ class Imslp:
             resp = self.browser.navigate(file_url.url, headers={'Accept': 'application/pdf'})
         if resp.status_code != 200 or b'404 Not Found' in resp.content[50:]:
             return None, None
-        if resp.content[:5] != b'%PDF-':
-            print('Not a PDF')
+        # if resp.content[:5] != b'%PDF-':
+        #     print('Not a PDF')
         filename = Path(parse_url(resp.url).path).name
         return filename, resp.content

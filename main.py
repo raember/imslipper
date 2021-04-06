@@ -27,22 +27,31 @@ if __name__ == '__main__':
     # imslp.get_score(parse_url('https://imslp.org/wiki/Special:ImagefromIndex/551285'))
     # imslp.get_score(parse_url('https://imslp.org/wiki/Special:ImagefromIndex/284577'))
     # exit(0)
-    composition_offset = 9
-    score_offset = 13
-    for composer_name, url in list(imslp.get_composers().items())[1382:]:
+    composer_offset = 0
+    composition_offset = 0
+    score_offset = 0
+    for composer_name, url in list(imslp.get_composers().items())[composer_offset:]:
         log.info(f"Fetching composer: {composer_name}")
         for composition_name, url in list(imslp.get_compositions(url).items())[composition_offset:]:
             log.info(f"  Fetching composition: {composition_name}")
             for title, dl_id, url in list(imslp.get_composition(url))[score_offset:]:
-                log.info(f"    Fetching score: {title} ({dl_id})")
-                filename, bytes = imslp.get_score(url)
-                if filename is None or bytes is None:
-                    log.warning("      Failed to fetch score")
-                    continue
-                path = Path('out', composer_name, composition_name, filename)
-                path.parent.mkdir(parents=True, exist_ok=True)
-                with open(path, 'wb') as fp:
-                    fp.write(bytes)
-                del bytes
+                path = Path('out', composer_name, composition_name.replace('/', '_'))
+                files = list(path.glob(f"IMSLP{dl_id}*"))
+                if len(files) == 0:
+                    log.info(f"    Fetching score: {title} ({dl_id})")
+                    filename, bytes = imslp.get_score(url)
+                    if filename is None or bytes is None:
+                        log.warning("      Failed to fetch score")
+                        continue
+                    path /= Path(filename)
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    with open(path, 'wb') as fp:
+                        fp.write(bytes)
+                    del bytes
+                elif len(files) == 1:
+                    log.info(f"    Score already present: {title} ({dl_id}) at '{files[0]}'")
+                else:
+                    log.error(f"    Matched too many files!\n{list(filter(str, files))}")
+                    exit(1)
                 score_offset = 0
             composition_offset = 0
