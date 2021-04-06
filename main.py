@@ -3,6 +3,7 @@ import logging
 from datetime import timedelta
 from pathlib import Path
 
+from requests.packages.urllib3.util.retry import Retry
 from spoofbot import Firefox
 from spoofbot.adapter import FileCacheAdapter
 
@@ -16,19 +17,23 @@ log = logging.getLogger(__name__)
 
 if __name__ == '__main__':
     sess = Firefox()
-    sess.adapter = FileCacheAdapter()
-    sess.request_timeout = timedelta(seconds=1.0)
+    jsn = sess.get('https://ipinfo.io/json', headers={'Accept': 'application/json'}).json()
+    log.info(f"Public ip: {jsn['ip']}")
+    sess.adapter = FileCacheAdapter(max_retries=Retry(total=5, backoff_factor=3, status_forcelist=[502, 503, 504]))
+    sess.request_timeout = timedelta(seconds=2.0)
     sess.cookies['imslp_wikiLanguageSelectorLanguage'] = 'en'
     sess.cookies['imslpdisclaimeraccepted'] = 'yes'
     imslp = Imslp(sess)
     # imslp.get_score(parse_url('https://imslp.org/wiki/Special:ImagefromIndex/551285'))
     # imslp.get_score(parse_url('https://imslp.org/wiki/Special:ImagefromIndex/284577'))
     # exit(0)
-    for composer_name, url in list(imslp.get_composers().items())[69:]:
+    composition_offset = 9
+    score_offset = 13
+    for composer_name, url in list(imslp.get_composers().items())[1382:]:
         log.info(f"Fetching composer: {composer_name}")
-        for composition_name, url in list(imslp.get_compositions(url).items())[:]:
+        for composition_name, url in list(imslp.get_compositions(url).items())[composition_offset:]:
             log.info(f"  Fetching composition: {composition_name}")
-            for title, dl_id, url in list(imslp.get_composition(url))[:]:
+            for title, dl_id, url in list(imslp.get_composition(url))[score_offset:]:
                 log.info(f"    Fetching score: {title} ({dl_id})")
                 filename, bytes = imslp.get_score(url)
                 if filename is None or bytes is None:
@@ -39,3 +44,5 @@ if __name__ == '__main__':
                 with open(path, 'wb') as fp:
                     fp.write(bytes)
                 del bytes
+                score_offset = 0
+            composition_offset = 0
