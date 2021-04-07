@@ -9,20 +9,20 @@ from spoofbot import Browser
 from spoofbot.adapter import FileCacheAdapter
 from urllib3.util import Url, parse_url
 
-
-class ImslpPage:
-    pass
-
-
-class Composer:
-    name: str
-    url: Url
-
-
-class Composition:
-    name: str
-    url: Url
-
+P2TYPE = {
+    'p1': 'Compositions',  # https://imslp.org/wiki/Category:Brahms,_Johannes
+    'p2': 'Collaborations',  # https://imslp.org/wiki/Category:Brahms,_Johannes
+    # 'p3',  # ???
+    'p4': 'Collections',  # https://imslp.org/wiki/Category:Brahms,_Johannes
+    'p5': 'As Performer',  # https://imslp.org/wiki/Category:Verbalis,_Anthony
+    'p6': 'As Arranger',  # https://imslp.org/wiki/Category:Brahms,_Johannes
+    'p7': 'As Editor',  # https://imslp.org/wiki/Category:Brahms,_Johannes
+    'p8': 'As Librettist',  # https://imslp.org/wiki/Category:Anonymous
+    'p9': 'As Translator',  # https://imslp.org/wiki/Category:Corder,_Frederick
+    'p10': 'As Copyist',  # https://imslp.org/wiki/Category:Bach,_Carl_Philipp_Emanuel
+    'p11': 'As Dedicatee',  # https://imslp.org/wiki/Category:Brahms,_Johannes
+    'p12': 'Books',  # https://imslp.org/wiki/Category:Brahms,_Johannes
+}
 
 class Imslp:
     browser: Browser
@@ -45,24 +45,31 @@ class Imslp:
                     f"https://imslp.org/index.php?title=Category:{title}&intersect=Recordings")
         return composers
 
-    def get_compositions(self, url: Url) -> Dict[str, Url]:
+    def get_publications(self, url: Url) -> Dict[str, Url]:
         # https://imslp.org/wiki/Per_piet%C3%A0%2C_bell'idol_mio_(Bellini%2C_Vincenzo)
         adapter = self.browser.adapter
         if isinstance(adapter, FileCacheAdapter):
             query = dict([kvp.split('=') for kvp in url.query.split('&')])
             adapter.next_request_cache_url = parse_url(f"https://imslp.org/composer/{query['title']}")
         doc = BeautifulSoup(self.browser.navigate(url.url).text, features='html5lib')
-        js = doc.select_one('div.jq-ui-tabs > div > script').string
-        del doc
-        json_str = re.search(r'\{"p1":[^;]*\}(?=\))', js).group(0)
-        compositions_by_char = json.loads(json_str)['p1']
-        compositions = {}
-        for compositions_list in (
-                compositions_by_char.values() if isinstance(compositions_by_char, dict) else compositions_by_char):
-            for composition in compositions_list:
-                title = composition.encode().decode().split('|')[0]
-                compositions[title] = parse_url(f"https://imslp.org/wiki/{title.replace(' ', '_')}")
-        return compositions
+        publications = {}
+        for js_tag in doc.select('div.jq-ui-tabs > div > script'):
+            js = js_tag.string
+            if js.startswith('if(typeof catpagejs'):
+                json_str = re.search(r'\{"p\d+"[^;]*\}(?=\))', js).group(0)
+                entries: dict = json.loads(json_str)
+                key = list(entries.keys())[0]
+                pub_type = P2TYPE[key]
+                publications[pub_type] = {}
+                entries_by_char = entries[key]
+                for entries_list in (
+                        entries_by_char.values()
+                        if isinstance(entries_by_char, dict)
+                        else entries_by_char):
+                    for composition in entries_list:
+                        title = composition.encode().decode().split('|')[0]
+                        publications[pub_type][title] = parse_url(f"https://imslp.org/wiki/{title.replace(' ', '_')}")
+        return publications
 
     def get_composition(self, url: Url) -> Generator[Tuple[str, int, Url], None, None]:
         # https://imslp.org/wiki/Special:ImagefromIndex/66465/pumu
